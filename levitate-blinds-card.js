@@ -393,6 +393,18 @@ class LevitateBlindsCard extends HTMLElement {
     this.railBottom.addEventListener('pointerup', handlePointerUp);
     this.railTop.addEventListener('pointercancel', handlePointerUp);
     this.railBottom.addEventListener('pointercancel', handlePointerUp);
+
+    // Container-level listeners to support touch-anywhere container dragging for single-motor cards
+    this.container.addEventListener('pointerdown', (e) => {
+      const hasTop = !!this.config.top_entity;
+      const hasBottom = !!this.config.bottom_entity;
+      if (hasTop && hasBottom) return; // Dual-motor: user must target rails directly
+      const railType = hasTop ? 'top' : 'bottom';
+      handlePointerDown(e, railType);
+    });
+    this.container.addEventListener('pointermove', handlePointerMove);
+    this.container.addEventListener('pointerup', handlePointerUp);
+    this.container.addEventListener('pointercancel', handlePointerUp);
   }
 
   set hass(hass) {
