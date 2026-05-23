@@ -244,24 +244,6 @@ class LevitateBlindsCard extends HTMLElement {
           text-overflow: ellipsis;
           max-width: 100%;
         }
-        .percentages {
-          display: flex;
-          width: ${isSlim ? '60px' : '140px'};
-          font-size: ${isSlim ? '10px' : '14px'};
-          color: var(--secondary-text-color);
-          font-weight: bold;
-          box-sizing: border-box;
-        }
-        .position-badge {
-          background: var(--secondary-background-color, var(--card-background-color, #eee));
-          color: var(--primary-text-color);
-          padding: 4px 12px;
-          border-radius: 12px;
-          font-size: 12px;
-          font-weight: bold;
-          text-align: center;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
         .error {
           color: var(--error-color, red);
           font-size: 13px;
@@ -280,11 +262,6 @@ class LevitateBlindsCard extends HTMLElement {
           <div class="rail ghost top" id="rail-ghost-top"></div>
           <div class="rail ghost bottom" id="rail-ghost-bottom"></div>
         </div>
-        <div class="percentages" id="percentages">
-          <span id="top-pct" style="flex: 1; text-align: left;">Top: --%</span>
-          <span id="bot-pct" style="flex: 1; text-align: right;">Bot: --%</span>
-        </div>
-        <div class="position-badge" id="badge" style="display: none;">--%</div>
       </ha-card>
     `;
 
@@ -295,10 +272,6 @@ class LevitateBlindsCard extends HTMLElement {
     this.railGhostBottom = this.shadowRoot.getElementById('rail-ghost-bottom');
     this.fabric = this.shadowRoot.getElementById('fabric');
     this.fabricGhost = this.shadowRoot.getElementById('fabric-ghost');
-    this.percentages = this.shadowRoot.getElementById('percentages');
-    this.topPct = this.shadowRoot.getElementById('top-pct');
-    this.botPct = this.shadowRoot.getElementById('bot-pct');
-    this.badge = this.shadowRoot.getElementById('badge');
     this.errorMsg = this.shadowRoot.getElementById('error-msg');
 
     const handlePointerDown = (e, railType) => {
@@ -416,8 +389,6 @@ class LevitateBlindsCard extends HTMLElement {
 
     if (!hasTop && !hasBottom) {
       this.container.style.display = 'none';
-      this.percentages.style.display = 'none';
-      this.badge.style.display = 'none';
       this.errorMsg.style.display = 'block';
       return;
     } else {
@@ -501,18 +472,6 @@ class LevitateBlindsCard extends HTMLElement {
 
     this.fabric.style.top = minY + "%";
     this.fabric.style.bottom = (100 - maxY) + "%";
-    
-    if (hasTop && hasBottom) {
-      this.topPct.innerText = "Top: " + this.currentTopPos + "%";
-      this.botPct.innerText = "Bot: " + this.currentBottomPos + "%";
-      this.percentages.style.display = "flex";
-      this.badge.style.display = "none";
-    } else {
-      const pos = hasTop ? this.currentTopPos : this.currentBottomPos;
-      this.badge.innerText = pos + "%";
-      this.percentages.style.display = "none";
-      this.badge.style.display = "block";
-    }
   }
 
   updateGhostVisuals() {
@@ -551,14 +510,6 @@ class LevitateBlindsCard extends HTMLElement {
 
     this.fabricGhost.style.top = minY + "%";
     this.fabricGhost.style.bottom = (100 - maxY) + "%";
-
-    if (hasTop && hasBottom) {
-      this.topPct.innerText = "Top: " + (dragTop ?? 100) + "%";
-      this.botPct.innerText = "Bot: " + (dragBottom ?? 0) + "%";
-    } else {
-      const pos = hasTop ? dragTop : dragBottom;
-      this.badge.innerText = pos + "%";
-    }
   }
 
   getCardSize() { return 4; }
