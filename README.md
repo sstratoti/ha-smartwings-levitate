@@ -40,15 +40,33 @@ Traditional cover cards in Home Assistant only support a single position slider,
 
 ## ⚙️ Configuration
 
-Add the card to your dashboard using the manual YAML editor.
+Add the card to your dashboard using the manual YAML editor or the visual editor.
 
-### Basic Single Blind
+### Dual-Bar Blinds (TDBU - Top-Down Bottom-Up)
 
 ```yaml
 type: custom:levitate-blinds-card
 name: Kitchen Window
 top_entity: cover.kitchen_blinds_top
 bottom_entity: cover.kitchen_blinds_bottom
+```
+
+### Single-Bar Blinds (Standard)
+
+For standard blinds that only have one moving bar (going from top to bottom), simply omit the `top_entity` property.
+
+```yaml
+type: custom:levitate-blinds-card
+name: Bedroom Window
+bottom_entity: cover.bedroom_blinds
+```
+
+For top-moving blinds, omit the `bottom_entity` property.
+
+```yaml
+type: custom:levitate-blinds-card
+name: Skylight
+top_entity: cover.skylight_blinds
 ```
 
 ### Room Group Control (Advanced)
@@ -73,8 +91,8 @@ bottom_entity: cover.den_blinds_bottom_group
 | Name | Type | Requirement | Description |
 | :--- | :---: | :---: | :--- |
 | `type` | string | **Required** | Must be `custom:levitate-blinds-card` |
-| `top_entity` | string | **Required** | The entity ID of your top rail motor. Must be a `cover` entity. |
-| `bottom_entity` | string | **Required** | The entity ID of your bottom rail motor. Must be a `cover` entity. |
+| `top_entity` | string | Optional | The entity ID of your top rail motor. Must be a `cover` entity. (Required if `bottom_entity` is omitted). |
+| `bottom_entity` | string | Optional | The entity ID of your bottom rail motor. Must be a `cover` entity. (Required if `top_entity` is omitted). |
 | `name` | string | Optional | Friendly name displayed at the top of the card. |
 
 ---
