@@ -27,12 +27,21 @@ class LevitateBlindsCardEditor extends HTMLElement {
           display: flex;
           flex-direction: column;
         }
+        .checkbox-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
         label {
           font-size: 14px;
           color: var(--secondary-text-color);
           margin-bottom: 8px;
         }
-        input {
+        .checkbox-group label {
+          margin-bottom: 0;
+          cursor: pointer;
+        }
+        input[type="text"] {
           padding: 10px;
           border: 1px solid var(--divider-color);
           border-radius: 4px;
@@ -40,9 +49,15 @@ class LevitateBlindsCardEditor extends HTMLElement {
           color: var(--primary-text-color);
           font-size: 14px;
         }
-        input:focus {
+        input[type="text"]:focus {
           outline: none;
           border-color: var(--primary-color);
+        }
+        input[type="checkbox"] {
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+          accent-color: var(--primary-color);
         }
       </style>
       <div class="card-config">
@@ -51,12 +66,16 @@ class LevitateBlindsCardEditor extends HTMLElement {
           <input type="text" id="name" value="${this._config.name || ''}" placeholder="e.g. Kitchen Blinds">
         </div>
         <div class="input-group">
-          <label>Top Rail Entity (Required)</label>
+          <label>Top Rail Entity (Optional if Bottom configured)</label>
           <input type="text" id="top_entity" value="${this._config.top_entity || ''}" placeholder="cover.my_blind_top">
         </div>
         <div class="input-group">
-          <label>Bottom Rail Entity (Required)</label>
+          <label>Bottom Rail Entity (Optional if Top configured)</label>
           <input type="text" id="bottom_entity" value="${this._config.bottom_entity || ''}" placeholder="cover.my_blind_bottom">
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="slim" ${this._config.slim ? 'checked' : ''}>
+          <label for="slim">Slim Mode (Compact layout)</label>
         </div>
       </div>
     `;
@@ -67,6 +86,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
         name: this.shadowRoot.getElementById('name').value,
         top_entity: this.shadowRoot.getElementById('top_entity').value,
         bottom_entity: this.shadowRoot.getElementById('bottom_entity').value,
+        slim: this.shadowRoot.getElementById('slim').checked,
       };
       
       const event = new Event("config-changed", {
@@ -80,6 +100,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
     this.shadowRoot.getElementById('name').addEventListener('input', updateConfig);
     this.shadowRoot.getElementById('top_entity').addEventListener('input', updateConfig);
     this.shadowRoot.getElementById('bottom_entity').addEventListener('input', updateConfig);
+    this.shadowRoot.getElementById('slim').addEventListener('change', updateConfig);
   }
 }
 customElements.define('levitate-blinds-card-editor', LevitateBlindsCardEditor);
@@ -105,36 +126,36 @@ class LevitateBlindsCard extends HTMLElement {
       type: "custom:levitate-blinds-card",
       name: "Levitate Blinds",
       top_entity: "",
-      bottom_entity: ""
+      bottom_entity: "",
+      slim: false
     };
   }
 
   setConfig(config) {
     this.config = config;
-    if (!this.container) {
-      this.initDom();
-    } else {
-      this.shadowRoot.querySelector('.name').innerText = this.config.name || 'Blind';
-    }
+    this.initDom();
   }
 
   initDom() {
+    const isSlim = !!this.config.slim;
     this.shadowRoot.innerHTML = `
       <style>
         ha-card {
-          padding: 24px;
+          padding: ${isSlim ? '12px 8px' : '24px'};
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 16px;
+          gap: ${isSlim ? '8px' : '16px'};
           background: var(--ha-card-background, var(--card-background-color, white));
           border-radius: var(--ha-card-border-radius, 12px);
           box-shadow: var(--ha-card-box-shadow, none);
+          box-sizing: border-box;
+          width: 100%;
         }
         .container {
           position: relative;
-          width: 140px;
-          height: 260px;
+          width: ${isSlim ? '60px' : '140px'};
+          height: ${isSlim ? '180px' : '260px'};
           background: var(--secondary-background-color, #e0e0e0);
           border-radius: 8px;
           border: 2px solid var(--divider-color, #ccc);
@@ -144,17 +165,17 @@ class LevitateBlindsCard extends HTMLElement {
           position: absolute;
           left: 0;
           right: 0;
-          background: var(--primary-color, #03a9f4);
+          background: var(--state-cover-active-color, var(--state-active-color, var(--primary-color, #03a9f4)));
           opacity: 0.6;
           pointer-events: none;
         }
         .rail {
           position: absolute;
-          left: -8px;
-          right: -8px;
-          height: 32px;
+          left: ${isSlim ? '-4px' : '-8px'};
+          right: ${isSlim ? '-4px' : '-8px'};
+          height: ${isSlim ? '20px' : '32px'};
           background: var(--primary-text-color, #444);
-          border-radius: 6px;
+          border-radius: ${isSlim ? '4px' : '6px'};
           box-shadow: 0 4px 8px rgba(0,0,0,0.3);
           z-index: 3;
           display: flex;
@@ -167,40 +188,46 @@ class LevitateBlindsCard extends HTMLElement {
         .rail::after {
           content: '|||';
           color: var(--card-background-color, #fff);
-          font-size: 10px;
-          letter-spacing: 2px;
+          font-size: ${isSlim ? '7px' : '10px'};
+          letter-spacing: ${isSlim ? '1px' : '2px'};
           opacity: 0.7;
         }
         .name {
           font-weight: 500;
-          font-size: 18px;
+          font-size: ${isSlim ? '12px' : '18px'};
           color: var(--primary-text-color);
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%;
         }
         .percentages {
           display: flex;
-          justify-content: space-between;
-          width: 140px;
-          font-size: 14px;
+          width: ${isSlim ? '60px' : '140px'};
+          font-size: ${isSlim ? '10px' : '14px'};
           color: var(--secondary-text-color);
           font-weight: bold;
+          box-sizing: border-box;
         }
         .error {
           color: var(--error-color, red);
-          font-size: 14px;
+          font-size: 13px;
           text-align: center;
+          padding: 8px;
         }
       </style>
       <ha-card>
         <div class="name">${this.config.name || 'Blind'}</div>
-        <div id="error-msg" class="error" style="display: none;">Please set both top and bottom entities.</div>
+        <div id="error-msg" class="error" style="display: none;">Please configure at least one blind entity.</div>
         <div class="container" id="container">
           <div class="fabric" id="fabric"></div>
           <div class="rail top" id="rail-top"></div>
           <div class="rail bottom" id="rail-bottom"></div>
         </div>
         <div class="percentages">
-          <span id="top-pct">Top: --%</span>
-          <span id="bot-pct">Bot: --%</span>
+          <span id="top-pct" style="flex: 1; text-align: left;">Top: --%</span>
+          <span id="bot-pct" style="flex: 1; text-align: right;">Bot: --%</span>
         </div>
       </ha-card>
     `;
@@ -228,14 +255,17 @@ class LevitateBlindsCard extends HTMLElement {
       let pctFromTop = (y / rect.height) * 100;
       let position = Math.round(100 - pctFromTop);
       
-      // Hardware limitation clamping
+      const hasTop = !!this.config.top_entity;
+      const hasBottom = !!this.config.bottom_entity;
+      
+      // Dynamic clamping
       if (this.activeRail === 'top') {
-        if (position < this.currentBottomPos) {
+        if (hasBottom && position < this.currentBottomPos) {
           position = this.currentBottomPos;
         }
         this.currentTopPos = position;
       } else {
-        if (position > this.currentTopPos) {
+        if (hasTop && position > this.currentTopPos) {
           position = this.currentTopPos;
         }
         this.currentBottomPos = position;
@@ -282,7 +312,10 @@ class LevitateBlindsCard extends HTMLElement {
     this._hass = hass;
     if (!this.config) return;
     
-    if (!this.config.top_entity || !this.config.bottom_entity) {
+    const hasTop = !!this.config.top_entity;
+    const hasBottom = !!this.config.bottom_entity;
+
+    if (!hasTop && !hasBottom) {
       this.container.style.display = 'none';
       this.shadowRoot.querySelector('.percentages').style.display = 'none';
       this.errorMsg.style.display = 'block';
@@ -293,18 +326,18 @@ class LevitateBlindsCard extends HTMLElement {
       this.errorMsg.style.display = 'none';
     }
 
-    const topState = hass.states[this.config.top_entity];
-    const bottomState = hass.states[this.config.bottom_entity];
+    const topState = hasTop ? hass.states[this.config.top_entity] : null;
+    const bottomState = hasBottom ? hass.states[this.config.bottom_entity] : null;
     
-    if (!topState || !bottomState) {
+    if ((hasTop && !topState) || (hasBottom && !bottomState)) {
         this.errorMsg.innerText = "Entity not found. Check entity IDs.";
         this.errorMsg.style.display = 'block';
         return;
     }
 
     if (!this.isDragging) {
-      const realTop = topState.attributes.current_position ?? 0;
-      const realBottom = bottomState.attributes.current_position ?? 0;
+      const realTop = topState ? (topState.attributes.current_position ?? 0) : 100;
+      const realBottom = bottomState ? (bottomState.attributes.current_position ?? 0) : 0;
 
       // Apply optimistic UI logic: ignore rapid state updates for 4 seconds after a drag
       if (this.optimisticTimeout && Date.now() < this.optimisticTimeout) {
@@ -330,22 +363,63 @@ class LevitateBlindsCard extends HTMLElement {
   }
 
   updateVisuals() {
-    if (this.currentTopPos === undefined || this.currentBottomPos === undefined) return;
-    const topY = 100 - this.currentTopPos;
-    const bottomY = 100 - this.currentBottomPos;
+    const hasTop = !!this.config.top_entity;
+    const hasBottom = !!this.config.bottom_entity;
+    const isSlim = !!this.config.slim;
 
-    this.railTop.style.top = (topY) + "%";
-    this.railBottom.style.top = (bottomY) + "%";
-    this.railTop.style.marginTop = "-16px";
-    this.railBottom.style.marginTop = "-16px";
+    const topY = hasTop ? (100 - (this.currentTopPos ?? 100)) : 0;
+    const bottomY = hasBottom ? (100 - (this.currentBottomPos ?? 0)) : 100;
 
-    const minY = Math.min(topY, bottomY);
-    const maxY = Math.max(topY, bottomY);
+    const railHalfHeight = isSlim ? 10 : 16;
+
+    if (hasTop) {
+      this.railTop.style.top = topY + "%";
+      this.railTop.style.marginTop = `-${railHalfHeight}px`;
+      this.railTop.style.display = "flex";
+    } else {
+      this.railTop.style.display = "none";
+    }
+
+    if (hasBottom) {
+      this.railBottom.style.top = bottomY + "%";
+      this.railBottom.style.marginTop = `-${railHalfHeight}px`;
+      this.railBottom.style.display = "flex";
+    } else {
+      this.railBottom.style.display = "none";
+    }
+
+    let minY, maxY;
+    if (hasTop && hasBottom) {
+      minY = Math.min(topY, bottomY);
+      maxY = Math.max(topY, bottomY);
+    } else if (hasTop) {
+      minY = 0;
+      maxY = topY;
+    } else if (hasBottom) {
+      minY = bottomY;
+      maxY = 100;
+    }
+
     this.fabric.style.top = minY + "%";
     this.fabric.style.bottom = (100 - maxY) + "%";
     
-    this.topPct.innerText = "Top: " + this.currentTopPos + "%";
-    this.botPct.innerText = "Bot: " + this.currentBottomPos + "%";
+    if (hasTop && hasBottom) {
+      this.topPct.innerText = "Top: " + this.currentTopPos + "%";
+      this.botPct.innerText = "Bot: " + this.currentBottomPos + "%";
+      this.topPct.style.display = "inline";
+      this.botPct.style.display = "inline";
+      this.shadowRoot.querySelector('.percentages').style.justifyContent = "space-between";
+    } else if (hasTop) {
+      this.topPct.innerText = "Pos: " + this.currentTopPos + "%";
+      this.topPct.style.textAlign = "center";
+      this.botPct.style.display = "none";
+      this.shadowRoot.querySelector('.percentages').style.justifyContent = "center";
+    } else if (hasBottom) {
+      this.botPct.innerText = "Pos: " + this.currentBottomPos + "%";
+      this.botPct.style.textAlign = "center";
+      this.topPct.style.display = "none";
+      this.shadowRoot.querySelector('.percentages').style.justifyContent = "center";
+    }
   }
 
   getCardSize() { return 4; }
@@ -356,6 +430,6 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "levitate-blinds-card",
   name: "Levitate Blinds Card",
-  description: "A specialized card for Top-Down Bottom-Up blinds.",
+  description: "A specialized card for Top-Down Bottom-Up and single-motor blinds.",
   preview: true
 });
