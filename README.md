@@ -99,3 +99,27 @@ The card assumes your `cover` entities use a standard 0-100 `current_position` a
 * `0%` means the rail is fully at the **bottom** (floor).
 
 When you slide the Top rail down, it sends a `set_cover_position` command to lower the percentage. When you slide the Bottom rail up, it increases the percentage. The blue "fabric" is dynamically drawn between the two rail coordinates.
+
+---
+
+## 🚀 Development & Live Deployment (for AI Agents)
+
+In this specific Home Assistant setup, the card is deployed as an **inline dashboard resource** directly in the Lovelace config database.
+
+- **Resource ID:** `15dcbde015b040c3aacc79da07fc3a71`
+- **Url:** `/local/levitate-blinds-card.js`
+- **Resource Type:** `module`
+
+### Deployment Steps
+To deploy live updates:
+1. Edit `levitate-blinds-card.js` locally.
+2. Commit and push the code changes to GitHub.
+3. Update the parent repo (`jlapenna/home-assistant`) submodule tracking reference and push it as well.
+4. Run the Home Assistant MCP tool:
+   - `ha_config_set_dashboard_resource` with:
+     - `resource_id`: `"15dcbde015b040c3aacc79da07fc3a71"`
+     - `content`: Complete content of `levitate-blinds-card.js`
+     - `url`: `/local/levitate-blinds-card.js`
+     - `res_type`: `module`
+5. Perform a **hard reload / clear cache** (`Ctrl+Shift+R` or `Cmd+Shift+R`) on your browser dashboard to fetch the updated resource.
+

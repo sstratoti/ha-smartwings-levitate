@@ -115,6 +115,8 @@ class LevitateBlindsCard extends HTMLElement {
     this.optimisticTimeout = 0;
     this.optimisticTop = null;
     this.optimisticBottom = null;
+    this.dragTopPos = null;
+    this.dragBottomPos = null;
   }
 
   static getConfigElement() {
@@ -141,7 +143,7 @@ class LevitateBlindsCard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         ha-card {
-          padding: ${isSlim ? '12px 8px' : '24px'};
+          padding: ${isSlim ? '12px 10px' : '20px 24px'};
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -154,12 +156,13 @@ class LevitateBlindsCard extends HTMLElement {
         }
         .container {
           position: relative;
-          width: ${isSlim ? '60px' : '140px'};
-          height: ${isSlim ? '180px' : '260px'};
+          width: ${isSlim ? '40px' : '80px'};
+          height: ${isSlim ? '150px' : '200px'};
           background: var(--secondary-background-color, #e0e0e0);
           border-radius: 8px;
           border: 2px solid var(--divider-color, #ccc);
           touch-action: none;
+          overflow: visible;
         }
         .fabric {
           position: absolute;
@@ -168,29 +171,68 @@ class LevitateBlindsCard extends HTMLElement {
           background: var(--state-cover-active-color, var(--state-active-color, var(--primary-color, #03a9f4)));
           opacity: 0.6;
           pointer-events: none;
+          transition: top 0.3s ease, bottom 0.3s ease;
+        }
+        .fabric.ghost {
+          position: absolute;
+          left: 0;
+          right: 0;
+          background: var(--state-cover-active-color, var(--state-active-color, var(--primary-color, #03a9f4)));
+          opacity: 0.25;
+          pointer-events: none;
+          z-index: 2;
+          display: none;
         }
         .rail {
           position: absolute;
-          left: ${isSlim ? '-4px' : '-8px'};
-          right: ${isSlim ? '-4px' : '-8px'};
-          height: ${isSlim ? '20px' : '32px'};
+          left: ${isSlim ? '-2px' : '-4px'};
+          right: ${isSlim ? '-2px' : '-4px'};
+          height: ${isSlim ? '12px' : '16px'};
           background: var(--primary-text-color, #444);
-          border-radius: ${isSlim ? '4px' : '6px'};
-          box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+          border-radius: ${isSlim ? '3px' : '4px'};
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
           z-index: 3;
           display: flex;
           justify-content: center;
           align-items: center;
           cursor: grab;
           touch-action: none;
+          transition: top 0.3s ease;
         }
         .rail:active { cursor: grabbing; }
         .rail::after {
-          content: '|||';
-          color: var(--card-background-color, #fff);
-          font-size: ${isSlim ? '7px' : '10px'};
-          letter-spacing: ${isSlim ? '1px' : '2px'};
-          opacity: 0.7;
+          content: '';
+          width: ${isSlim ? '16px' : '24px'};
+          height: ${isSlim ? '2px' : '3px'};
+          background: var(--card-background-color, rgba(255,255,255,0.6));
+          border-radius: 1px;
+        }
+        .rail.ghost {
+          position: absolute;
+          left: ${isSlim ? '-2px' : '-4px'};
+          right: ${isSlim ? '-2px' : '-4px'};
+          height: ${isSlim ? '12px' : '16px'};
+          background: var(--primary-text-color, #444);
+          border-radius: ${isSlim ? '3px' : '4px'};
+          opacity: 0.4;
+          border: 1px dashed var(--card-background-color, white);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+          z-index: 4;
+          display: none;
+          justify-content: center;
+          align-items: center;
+          pointer-events: none;
+        }
+        .rail.ghost::after {
+          content: '';
+          width: ${isSlim ? '16px' : '24px'};
+          height: ${isSlim ? '2px' : '3px'};
+          background: var(--card-background-color, rgba(255,255,255,0.6));
+          border-radius: 1px;
+        }
+        .container.dragging .rail,
+        .container.dragging .fabric {
+          transition: none !important;
         }
         .name {
           font-weight: 500;
@@ -210,6 +252,16 @@ class LevitateBlindsCard extends HTMLElement {
           font-weight: bold;
           box-sizing: border-box;
         }
+        .position-badge {
+          background: var(--secondary-background-color, var(--card-background-color, #eee));
+          color: var(--primary-text-color);
+          padding: 4px 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: bold;
+          text-align: center;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
         .error {
           color: var(--error-color, red);
           font-size: 13px;
@@ -222,28 +274,50 @@ class LevitateBlindsCard extends HTMLElement {
         <div id="error-msg" class="error" style="display: none;">Please configure at least one blind entity.</div>
         <div class="container" id="container">
           <div class="fabric" id="fabric"></div>
+          <div class="fabric ghost" id="fabric-ghost"></div>
           <div class="rail top" id="rail-top"></div>
           <div class="rail bottom" id="rail-bottom"></div>
+          <div class="rail ghost top" id="rail-ghost-top"></div>
+          <div class="rail ghost bottom" id="rail-ghost-bottom"></div>
         </div>
-        <div class="percentages">
+        <div class="percentages" id="percentages">
           <span id="top-pct" style="flex: 1; text-align: left;">Top: --%</span>
           <span id="bot-pct" style="flex: 1; text-align: right;">Bot: --%</span>
         </div>
+        <div class="position-badge" id="badge" style="display: none;">--%</div>
       </ha-card>
     `;
 
     this.container = this.shadowRoot.getElementById('container');
     this.railTop = this.shadowRoot.getElementById('rail-top');
     this.railBottom = this.shadowRoot.getElementById('rail-bottom');
+    this.railGhostTop = this.shadowRoot.getElementById('rail-ghost-top');
+    this.railGhostBottom = this.shadowRoot.getElementById('rail-ghost-bottom');
     this.fabric = this.shadowRoot.getElementById('fabric');
+    this.fabricGhost = this.shadowRoot.getElementById('fabric-ghost');
+    this.percentages = this.shadowRoot.getElementById('percentages');
     this.topPct = this.shadowRoot.getElementById('top-pct');
     this.botPct = this.shadowRoot.getElementById('bot-pct');
+    this.badge = this.shadowRoot.getElementById('badge');
     this.errorMsg = this.shadowRoot.getElementById('error-msg');
 
     const handlePointerDown = (e, railType) => {
       this.isDragging = true;
       this.activeRail = railType;
+      this.container.classList.add('dragging');
       e.target.setPointerCapture(e.pointerId);
+
+      this.dragTopPos = this.currentTopPos;
+      this.dragBottomPos = this.currentBottomPos;
+
+      // Show ghosts
+      this.fabricGhost.style.display = 'block';
+      if (railType === 'top') {
+        this.railGhostTop.style.display = 'flex';
+      } else {
+        this.railGhostBottom.style.display = 'flex';
+      }
+      this.updateGhostVisuals();
     };
 
     const handlePointerMove = (e) => {
@@ -258,28 +332,41 @@ class LevitateBlindsCard extends HTMLElement {
       const hasTop = !!this.config.top_entity;
       const hasBottom = !!this.config.bottom_entity;
       
-      // Dynamic clamping
       if (this.activeRail === 'top') {
         if (hasBottom && position < this.currentBottomPos) {
           position = this.currentBottomPos;
         }
-        this.currentTopPos = position;
+        this.dragTopPos = position;
       } else {
         if (hasTop && position > this.currentTopPos) {
           position = this.currentTopPos;
         }
-        this.currentBottomPos = position;
+        this.dragBottomPos = position;
       }
-      this.updateVisuals();
+      this.updateGhostVisuals();
     };
 
     const handlePointerUp = (e) => {
       if (!this.isDragging) return;
       this.isDragging = false;
+      this.container.classList.remove('dragging');
       e.target.releasePointerCapture(e.pointerId);
+
+      // Hide ghosts
+      this.fabricGhost.style.display = 'none';
+      this.railGhostTop.style.display = 'none';
+      this.railGhostBottom.style.display = 'none';
       
       const entity = this.activeRail === 'top' ? this.config.top_entity : this.config.bottom_entity;
-      const position = this.activeRail === 'top' ? this.currentTopPos : this.currentBottomPos;
+      const position = this.activeRail === 'top' ? this.dragTopPos : this.dragBottomPos;
+
+      // Update positions immediately
+      if (this.activeRail === 'top') {
+        this.currentTopPos = this.dragTopPos;
+      } else {
+        this.currentBottomPos = this.dragBottomPos;
+      }
+      this.updateVisuals();
       
       // Optimistic UI update lock to prevent snapping back immediately
       this.optimisticTimeout = Date.now() + 4000;
@@ -317,12 +404,12 @@ class LevitateBlindsCard extends HTMLElement {
 
     if (!hasTop && !hasBottom) {
       this.container.style.display = 'none';
-      this.shadowRoot.querySelector('.percentages').style.display = 'none';
+      this.percentages.style.display = 'none';
+      this.badge.style.display = 'none';
       this.errorMsg.style.display = 'block';
       return;
     } else {
       this.container.style.display = 'block';
-      this.shadowRoot.querySelector('.percentages').style.display = 'flex';
       this.errorMsg.style.display = 'none';
     }
 
@@ -370,7 +457,7 @@ class LevitateBlindsCard extends HTMLElement {
     const topY = hasTop ? (100 - (this.currentTopPos ?? 100)) : 0;
     const bottomY = hasBottom ? (100 - (this.currentBottomPos ?? 0)) : 100;
 
-    const railHalfHeight = isSlim ? 10 : 16;
+    const railHalfHeight = isSlim ? 6 : 8;
 
     if (hasTop) {
       this.railTop.style.top = topY + "%";
@@ -406,19 +493,59 @@ class LevitateBlindsCard extends HTMLElement {
     if (hasTop && hasBottom) {
       this.topPct.innerText = "Top: " + this.currentTopPos + "%";
       this.botPct.innerText = "Bot: " + this.currentBottomPos + "%";
-      this.topPct.style.display = "inline";
-      this.botPct.style.display = "inline";
-      this.shadowRoot.querySelector('.percentages').style.justifyContent = "space-between";
+      this.percentages.style.display = "flex";
+      this.badge.style.display = "none";
+    } else {
+      const pos = hasTop ? this.currentTopPos : this.currentBottomPos;
+      this.badge.innerText = pos + "%";
+      this.percentages.style.display = "none";
+      this.badge.style.display = "block";
+    }
+  }
+
+  updateGhostVisuals() {
+    const hasTop = !!this.config.top_entity;
+    const hasBottom = !!this.config.bottom_entity;
+    const isSlim = !!this.config.slim;
+
+    const dragTop = this.activeRail === 'top' ? this.dragTopPos : this.currentTopPos;
+    const dragBottom = this.activeRail === 'bottom' ? this.dragBottomPos : this.currentBottomPos;
+
+    const topY = hasTop ? (100 - (dragTop ?? 100)) : 0;
+    const bottomY = hasBottom ? (100 - (dragBottom ?? 0)) : 100;
+
+    const railHalfHeight = isSlim ? 6 : 8;
+
+    if (this.activeRail === 'top' && hasTop) {
+      this.railGhostTop.style.top = topY + "%";
+      this.railGhostTop.style.marginTop = `-${railHalfHeight}px`;
+    }
+    if (this.activeRail === 'bottom' && hasBottom) {
+      this.railGhostBottom.style.top = bottomY + "%";
+      this.railGhostBottom.style.marginTop = `-${railHalfHeight}px`;
+    }
+
+    let minY, maxY;
+    if (hasTop && hasBottom) {
+      minY = Math.min(topY, bottomY);
+      maxY = Math.max(topY, bottomY);
     } else if (hasTop) {
-      this.topPct.innerText = "Pos: " + this.currentTopPos + "%";
-      this.topPct.style.textAlign = "center";
-      this.botPct.style.display = "none";
-      this.shadowRoot.querySelector('.percentages').style.justifyContent = "center";
+      minY = 0;
+      maxY = topY;
     } else if (hasBottom) {
-      this.botPct.innerText = "Pos: " + this.currentBottomPos + "%";
-      this.botPct.style.textAlign = "center";
-      this.topPct.style.display = "none";
-      this.shadowRoot.querySelector('.percentages').style.justifyContent = "center";
+      minY = bottomY;
+      maxY = 100;
+    }
+
+    this.fabricGhost.style.top = minY + "%";
+    this.fabricGhost.style.bottom = (100 - maxY) + "%";
+
+    if (hasTop && hasBottom) {
+      this.topPct.innerText = "Top: " + (dragTop ?? 100) + "%";
+      this.botPct.innerText = "Bot: " + (dragBottom ?? 0) + "%";
+    } else {
+      const pos = hasTop ? dragTop : dragBottom;
+      this.badge.innerText = pos + "%";
     }
   }
 
