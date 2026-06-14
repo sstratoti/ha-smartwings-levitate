@@ -165,7 +165,7 @@ class LevitateBlindsCard extends HTMLElement {
           background: var(--secondary-background-color, #e0e0e0);
           border-radius: 8px;
           border: 2px solid var(--divider-color, #ccc);
-          touch-action: pan-y;
+          touch-action: none;
           overflow: visible;
         }
         .fabric {
@@ -200,7 +200,7 @@ class LevitateBlindsCard extends HTMLElement {
           justify-content: center;
           align-items: center;
           cursor: grab;
-          touch-action: pan-y;
+          touch-action: none;
           transition: top 0.3s ease;
         }
         .rail:active { cursor: grabbing; }
