@@ -414,6 +414,15 @@ class LevitateBlindsCardEditor extends HTMLElement {
 
     topEnabled.addEventListener('change', () => {
       topRow.style.display = topEnabled.checked ? 'flex' : 'none';
+      if (topEnabled.checked && this._hass && this._config.top_entity) {
+        const state = this._hass.states[this._config.top_entity];
+        if (state) {
+          const raw = state.attributes.current_position ?? 50;
+          const pos = Math.round(!!this._config.invert_top ? 100 - raw : raw);
+          topSlider.value = pos;
+          topValEl.textContent = pos + '%';
+        }
+      }
     });
     topSlider.addEventListener('input', () => {
       topValEl.textContent = topSlider.value + '%';
@@ -426,6 +435,15 @@ class LevitateBlindsCardEditor extends HTMLElement {
 
     bottomEnabled.addEventListener('change', () => {
       bottomRow.style.display = bottomEnabled.checked ? 'flex' : 'none';
+      if (bottomEnabled.checked && this._hass && this._config.bottom_entity) {
+        const state = this._hass.states[this._config.bottom_entity];
+        if (state) {
+          const raw = state.attributes.current_position ?? 50;
+          const pos = Math.round(!!this._config.invert_bottom ? 100 - raw : raw);
+          bottomSlider.value = pos;
+          bottomValEl.textContent = pos + '%';
+        }
+      }
     });
     bottomSlider.addEventListener('input', () => {
       bottomValEl.textContent = bottomSlider.value + '%';
