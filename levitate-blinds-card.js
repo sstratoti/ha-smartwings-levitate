@@ -98,6 +98,28 @@ class LevitateBlindsCardEditor extends HTMLElement {
           transition: border-color 0.15s;
         }
         .preset-btn-row.is-editing { border-color: var(--primary-color); }
+        .preset-move-col {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          flex-shrink: 0;
+        }
+        .preset-move-btn {
+          background: none;
+          border: 1px solid var(--divider-color);
+          color: var(--secondary-text-color);
+          border-radius: 3px;
+          padding: 1px 5px;
+          cursor: pointer;
+          font-size: 11px;
+          line-height: 1.4;
+          white-space: nowrap;
+        }
+        .preset-move-btn:disabled { opacity: 0.25; cursor: default; }
+        .preset-move-btn:not(:disabled):hover {
+          border-color: var(--primary-color);
+          color: var(--primary-color);
+        }
         .preset-btn-info { flex: 1; min-width: 0; }
         .preset-btn-name { font-size: 13px; color: var(--primary-text-color); font-weight: 500; }
         .preset-btn-positions { font-size: 11px; color: var(--secondary-text-color); margin-top: 2px; }
@@ -352,6 +374,39 @@ class LevitateBlindsCardEditor extends HTMLElement {
         const row = document.createElement('div');
         row.className = 'preset-btn-row' + (this._editingIdx === idx ? ' is-editing' : '');
 
+        // Up/down reorder column
+        const moveCol = document.createElement('div');
+        moveCol.className = 'preset-move-col';
+
+        const upBtn = document.createElement('button');
+        upBtn.className = 'preset-move-btn';
+        upBtn.textContent = '▲';
+        upBtn.title = 'Move up';
+        upBtn.disabled = idx === 0;
+        upBtn.addEventListener('click', () => {
+          const newButtons = [...presetButtons];
+          [newButtons[idx - 1], newButtons[idx]] = [newButtons[idx], newButtons[idx - 1]];
+          if (this._editingIdx === idx) this._editingIdx = idx - 1;
+          else if (this._editingIdx === idx - 1) this._editingIdx = idx;
+          fire({ ...this._config, preset_buttons: newButtons });
+        });
+
+        const downBtn = document.createElement('button');
+        downBtn.className = 'preset-move-btn';
+        downBtn.textContent = '▼';
+        downBtn.title = 'Move down';
+        downBtn.disabled = idx === presetButtons.length - 1;
+        downBtn.addEventListener('click', () => {
+          const newButtons = [...presetButtons];
+          [newButtons[idx], newButtons[idx + 1]] = [newButtons[idx + 1], newButtons[idx]];
+          if (this._editingIdx === idx) this._editingIdx = idx + 1;
+          else if (this._editingIdx === idx + 1) this._editingIdx = idx;
+          fire({ ...this._config, preset_buttons: newButtons });
+        });
+
+        moveCol.appendChild(upBtn);
+        moveCol.appendChild(downBtn);
+
         const info = document.createElement('div');
         info.className = 'preset-btn-info';
         const nameEl = document.createElement('div');
@@ -395,6 +450,8 @@ class LevitateBlindsCardEditor extends HTMLElement {
         actions.appendChild(editBtn);
         actions.appendChild(testBtn);
         actions.appendChild(removeBtn);
+
+        row.appendChild(moveCol);
         row.appendChild(info);
         row.appendChild(actions);
         listEl.appendChild(row);
