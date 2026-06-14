@@ -2,6 +2,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    this._editingIdx = null;
   }
 
   setConfig(config) {
@@ -17,11 +18,31 @@ class LevitateBlindsCardEditor extends HTMLElement {
     });
   }
 
+  _testPreset(btn) {
+    if (!this._hass) return;
+    if (btn.top != null && this._config.top_entity) {
+      const pos = !!this._config.invert_top ? 100 - btn.top : btn.top;
+      this._hass.callService('cover', 'set_cover_position', { entity_id: this._config.top_entity, position: pos });
+    }
+    if (btn.bottom != null && this._config.bottom_entity) {
+      const pos = !!this._config.invert_bottom ? 100 - btn.bottom : btn.bottom;
+      this._hass.callService('cover', 'set_cover_position', { entity_id: this._config.bottom_entity, position: pos });
+    }
+  }
+
   render() {
     if (!this._config) return;
     const tapAction = this._config.tap_action || { action: 'more-info' };
     const presetStr = (this._config.presets || []).join(', ');
     const color = this._config.color || '#03a9f4';
+    const presetButtons = this._config.preset_buttons || [];
+
+    // Guard stale editing index
+    if (this._editingIdx !== null && this._editingIdx >= presetButtons.length) {
+      this._editingIdx = null;
+    }
+    const isEditing = this._editingIdx !== null;
+    const editingBtn = isEditing ? presetButtons[this._editingIdx] : null;
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -69,15 +90,38 @@ class LevitateBlindsCardEditor extends HTMLElement {
         .preset-btn-row {
           display: flex;
           align-items: center;
-          justify-content: space-between;
           padding: 8px 10px;
           background: var(--secondary-background-color, #f5f5f5);
           border-radius: 4px;
           gap: 8px;
+          border: 1px solid transparent;
+          transition: border-color 0.15s;
         }
+        .preset-btn-row.is-editing { border-color: var(--primary-color); }
         .preset-btn-info { flex: 1; min-width: 0; }
         .preset-btn-name { font-size: 13px; color: var(--primary-text-color); font-weight: 500; }
         .preset-btn-positions { font-size: 11px; color: var(--secondary-text-color); margin-top: 2px; }
+        .preset-row-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .preset-edit-btn {
+          background: none;
+          border: 1px solid var(--primary-color);
+          color: var(--primary-color);
+          border-radius: 4px;
+          padding: 3px 8px;
+          cursor: pointer;
+          font-size: 12px;
+          white-space: nowrap;
+        }
+        .preset-test-btn {
+          background: none;
+          border: 1px solid var(--secondary-text-color);
+          color: var(--secondary-text-color);
+          border-radius: 4px;
+          padding: 3px 8px;
+          cursor: pointer;
+          font-size: 12px;
+          white-space: nowrap;
+        }
         .preset-remove-btn {
           background: none;
           border: 1px solid var(--error-color, red);
@@ -87,7 +131,6 @@ class LevitateBlindsCardEditor extends HTMLElement {
           cursor: pointer;
           font-size: 12px;
           white-space: nowrap;
-          flex-shrink: 0;
         }
         .no-presets { font-size: 12px; color: var(--secondary-text-color); font-style: italic; }
         .add-form {
@@ -97,7 +140,14 @@ class LevitateBlindsCardEditor extends HTMLElement {
           padding: 12px;
           background: var(--secondary-background-color, #f5f5f5);
           border-radius: 4px;
-          border: 1px dashed var(--divider-color);
+          border: 1px solid ${isEditing ? 'var(--primary-color)' : 'var(--divider-color)'};
+          border-style: ${isEditing ? 'solid' : 'dashed'};
+        }
+        .form-title {
+          font-size: 12px;
+          font-weight: 600;
+          color: ${isEditing ? 'var(--primary-color)' : 'var(--secondary-text-color)'};
+          margin-bottom: -4px;
         }
         .slider-group { display: flex; flex-direction: column; gap: 6px; }
         .slider-row {
@@ -106,11 +156,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
           gap: 10px;
           padding: 2px 0 2px 26px;
         }
-        .slider-row input[type="range"] {
-          flex: 1;
-          accent-color: var(--primary-color);
-          cursor: pointer;
-        }
+        .slider-row input[type="range"] { flex: 1; accent-color: var(--primary-color); cursor: pointer; }
         .slider-val {
           font-size: 13px;
           font-weight: 600;
@@ -119,6 +165,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
           text-align: right;
           font-variant-numeric: tabular-nums;
         }
+        .form-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         .add-btn {
           background: var(--primary-color);
           color: white;
@@ -127,7 +174,24 @@ class LevitateBlindsCardEditor extends HTMLElement {
           padding: 8px 16px;
           cursor: pointer;
           font-size: 14px;
-          align-self: flex-start;
+        }
+        .test-form-btn {
+          background: none;
+          border: 1px solid var(--primary-color);
+          color: var(--primary-color);
+          border-radius: 4px;
+          padding: 8px 16px;
+          cursor: pointer;
+          font-size: 14px;
+        }
+        .cancel-btn {
+          background: none;
+          border: 1px solid var(--secondary-text-color);
+          color: var(--secondary-text-color);
+          border-radius: 4px;
+          padding: 8px 16px;
+          cursor: pointer;
+          font-size: 14px;
         }
       </style>
       <div class="card-config">
@@ -190,6 +254,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
         <div class="section-title">Preset Buttons</div>
         <div id="preset-buttons-list"></div>
         <div class="add-form">
+          <div class="form-title">${isEditing ? `Editing: ${editingBtn ? editingBtn.name : ''}` : 'New Preset Button'}</div>
           <div>
             <label>Button Name</label>
             <input type="text" id="new-preset-name" placeholder="e.g. Sunny">
@@ -214,7 +279,11 @@ class LevitateBlindsCardEditor extends HTMLElement {
               <span class="slider-val" id="new-preset-bottom-val">50%</span>
             </div>
           </div>
-          <button class="add-btn" id="add-preset-btn">+ Add Button</button>
+          <div class="form-actions">
+            <button class="add-btn" id="add-preset-btn">${isEditing ? 'Save Changes' : '+ Add Button'}</button>
+            <button class="test-form-btn" id="test-preset-btn">Test</button>
+            ${isEditing ? '<button class="cancel-btn" id="cancel-edit-btn">Cancel</button>' : ''}
+          </div>
         </div>
 
       </div>
@@ -276,41 +345,58 @@ class LevitateBlindsCardEditor extends HTMLElement {
     });
 
     // Preset buttons list
-    const presetButtons = this._config.preset_buttons || [];
     const listEl = this.shadowRoot.getElementById('preset-buttons-list');
 
     if (presetButtons.length) {
       presetButtons.forEach((btn, idx) => {
         const row = document.createElement('div');
-        row.className = 'preset-btn-row';
+        row.className = 'preset-btn-row' + (this._editingIdx === idx ? ' is-editing' : '');
 
         const info = document.createElement('div');
         info.className = 'preset-btn-info';
-
         const nameEl = document.createElement('div');
         nameEl.className = 'preset-btn-name';
         nameEl.textContent = btn.name || 'Unnamed';
-
         const posEl = document.createElement('div');
         posEl.className = 'preset-btn-positions';
         posEl.textContent = [
           btn.top != null ? `↑ ${btn.top}%` : null,
           btn.bottom != null ? `↓ ${btn.bottom}%` : null
         ].filter(Boolean).join('   ');
-
         info.appendChild(nameEl);
         info.appendChild(posEl);
+
+        const actions = document.createElement('div');
+        actions.className = 'preset-row-actions';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'preset-edit-btn';
+        editBtn.textContent = this._editingIdx === idx ? 'Editing…' : 'Edit';
+        editBtn.disabled = this._editingIdx === idx;
+        editBtn.addEventListener('click', () => {
+          this._editingIdx = idx;
+          this.render();
+        });
+
+        const testBtn = document.createElement('button');
+        testBtn.className = 'preset-test-btn';
+        testBtn.textContent = 'Test';
+        testBtn.addEventListener('click', () => this._testPreset(btn));
 
         const removeBtn = document.createElement('button');
         removeBtn.className = 'preset-remove-btn';
         removeBtn.textContent = 'Remove';
         removeBtn.addEventListener('click', () => {
+          if (this._editingIdx === idx) this._editingIdx = null;
           const newButtons = presetButtons.filter((_, i) => i !== idx);
           fire({ ...this._config, preset_buttons: newButtons.length ? newButtons : undefined });
         });
 
+        actions.appendChild(editBtn);
+        actions.appendChild(testBtn);
+        actions.appendChild(removeBtn);
         row.appendChild(info);
-        row.appendChild(removeBtn);
+        row.appendChild(actions);
         listEl.appendChild(row);
       });
     } else {
@@ -320,7 +406,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
       listEl.appendChild(empty);
     }
 
-    // Slider show/hide and live value display
+    // Slider wiring
     const topEnabled = this.shadowRoot.getElementById('new-preset-top-enabled');
     const topRow = this.shadowRoot.getElementById('new-preset-top-row');
     const topSlider = this.shadowRoot.getElementById('new-preset-top');
@@ -345,7 +431,24 @@ class LevitateBlindsCardEditor extends HTMLElement {
       bottomValEl.textContent = bottomSlider.value + '%';
     });
 
-    // Add preset button
+    // Pre-populate form when editing
+    if (isEditing && editingBtn) {
+      this.shadowRoot.getElementById('new-preset-name').value = editingBtn.name || '';
+      if (editingBtn.top != null) {
+        topEnabled.checked = true;
+        topRow.style.display = 'flex';
+        topSlider.value = editingBtn.top;
+        topValEl.textContent = editingBtn.top + '%';
+      }
+      if (editingBtn.bottom != null) {
+        bottomEnabled.checked = true;
+        bottomRow.style.display = 'flex';
+        bottomSlider.value = editingBtn.bottom;
+        bottomValEl.textContent = editingBtn.bottom + '%';
+      }
+    }
+
+    // Save / Add button
     this.shadowRoot.getElementById('add-preset-btn').addEventListener('click', () => {
       const nameVal = this.shadowRoot.getElementById('new-preset-name').value.trim();
       if (!nameVal) return;
@@ -354,7 +457,28 @@ class LevitateBlindsCardEditor extends HTMLElement {
       if (topEnabled.checked) newBtn.top = parseInt(topSlider.value, 10);
       if (bottomEnabled.checked) newBtn.bottom = parseInt(bottomSlider.value, 10);
 
-      fire({ ...this._config, preset_buttons: [...presetButtons, newBtn] });
+      const newButtons = [...presetButtons];
+      if (isEditing) {
+        newButtons[this._editingIdx] = newBtn;
+        this._editingIdx = null;
+      } else {
+        newButtons.push(newBtn);
+      }
+      fire({ ...this._config, preset_buttons: newButtons.length ? newButtons : undefined });
+    });
+
+    // Test button — fires current slider values without saving
+    this.shadowRoot.getElementById('test-preset-btn').addEventListener('click', () => {
+      this._testPreset({
+        top: topEnabled.checked ? parseInt(topSlider.value, 10) : null,
+        bottom: bottomEnabled.checked ? parseInt(bottomSlider.value, 10) : null
+      });
+    });
+
+    // Cancel edit
+    this.shadowRoot.getElementById('cancel-edit-btn')?.addEventListener('click', () => {
+      this._editingIdx = null;
+      this.render();
     });
   }
 }
