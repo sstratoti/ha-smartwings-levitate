@@ -42,7 +42,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
         label { font-size: 14px; color: var(--secondary-text-color); margin-bottom: 6px; display: block; }
         .checkbox-group { display: flex; align-items: center; gap: 8px; }
         .checkbox-group label { margin-bottom: 0; cursor: pointer; }
-        input[type="text"], input[type="number"], select {
+        input[type="text"], select {
           padding: 10px;
           border: 1px solid var(--divider-color);
           border-radius: 4px;
@@ -52,10 +52,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
           width: 100%;
           box-sizing: border-box;
         }
-        input[type="text"]:focus, input[type="number"]:focus, select:focus {
-          outline: none;
-          border-color: var(--primary-color);
-        }
+        input[type="text"]:focus, select:focus { outline: none; border-color: var(--primary-color); }
         input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary-color); }
         input[type="color"] {
           width: 40px; height: 34px; padding: 2px 3px;
@@ -96,13 +93,32 @@ class LevitateBlindsCardEditor extends HTMLElement {
         .add-form {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 12px;
           padding: 12px;
           background: var(--secondary-background-color, #f5f5f5);
           border-radius: 4px;
           border: 1px dashed var(--divider-color);
         }
-        .add-form label { margin-bottom: 4px; }
+        .slider-group { display: flex; flex-direction: column; gap: 6px; }
+        .slider-row {
+          display: none;
+          align-items: center;
+          gap: 10px;
+          padding: 2px 0 2px 26px;
+        }
+        .slider-row input[type="range"] {
+          flex: 1;
+          accent-color: var(--primary-color);
+          cursor: pointer;
+        }
+        .slider-val {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--primary-text-color);
+          min-width: 36px;
+          text-align: right;
+          font-variant-numeric: tabular-nums;
+        }
         .add-btn {
           background: var(--primary-color);
           color: white;
@@ -178,14 +194,24 @@ class LevitateBlindsCardEditor extends HTMLElement {
             <label>Button Name</label>
             <input type="text" id="new-preset-name" placeholder="e.g. Sunny">
           </div>
-          <div class="two-col">
-            <div>
-              <label>Top Position % (optional)</label>
-              <input type="number" id="new-preset-top" min="0" max="100" placeholder="0–100">
+          <div class="slider-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="new-preset-top-enabled">
+              <label for="new-preset-top-enabled">Set Top Rail Position</label>
             </div>
-            <div>
-              <label>Bottom Position % (optional)</label>
-              <input type="number" id="new-preset-bottom" min="0" max="100" placeholder="0–100">
+            <div class="slider-row" id="new-preset-top-row">
+              <input type="range" id="new-preset-top" min="0" max="100" step="1" value="50">
+              <span class="slider-val" id="new-preset-top-val">50%</span>
+            </div>
+          </div>
+          <div class="slider-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="new-preset-bottom-enabled">
+              <label for="new-preset-bottom-enabled">Set Bottom Rail Position</label>
+            </div>
+            <div class="slider-row" id="new-preset-bottom-row">
+              <input type="range" id="new-preset-bottom" min="0" max="100" step="1" value="50">
+              <span class="slider-val" id="new-preset-bottom-val">50%</span>
             </div>
           </div>
           <button class="add-btn" id="add-preset-btn">+ Add Button</button>
@@ -294,17 +320,39 @@ class LevitateBlindsCardEditor extends HTMLElement {
       listEl.appendChild(empty);
     }
 
+    // Slider show/hide and live value display
+    const topEnabled = this.shadowRoot.getElementById('new-preset-top-enabled');
+    const topRow = this.shadowRoot.getElementById('new-preset-top-row');
+    const topSlider = this.shadowRoot.getElementById('new-preset-top');
+    const topValEl = this.shadowRoot.getElementById('new-preset-top-val');
+
+    topEnabled.addEventListener('change', () => {
+      topRow.style.display = topEnabled.checked ? 'flex' : 'none';
+    });
+    topSlider.addEventListener('input', () => {
+      topValEl.textContent = topSlider.value + '%';
+    });
+
+    const bottomEnabled = this.shadowRoot.getElementById('new-preset-bottom-enabled');
+    const bottomRow = this.shadowRoot.getElementById('new-preset-bottom-row');
+    const bottomSlider = this.shadowRoot.getElementById('new-preset-bottom');
+    const bottomValEl = this.shadowRoot.getElementById('new-preset-bottom-val');
+
+    bottomEnabled.addEventListener('change', () => {
+      bottomRow.style.display = bottomEnabled.checked ? 'flex' : 'none';
+    });
+    bottomSlider.addEventListener('input', () => {
+      bottomValEl.textContent = bottomSlider.value + '%';
+    });
+
     // Add preset button
     this.shadowRoot.getElementById('add-preset-btn').addEventListener('click', () => {
       const nameVal = this.shadowRoot.getElementById('new-preset-name').value.trim();
       if (!nameVal) return;
 
-      const topVal = this.shadowRoot.getElementById('new-preset-top').value;
-      const bottomVal = this.shadowRoot.getElementById('new-preset-bottom').value;
-
       const newBtn = { name: nameVal };
-      if (topVal !== '') newBtn.top = Math.max(0, Math.min(100, parseInt(topVal, 10)));
-      if (bottomVal !== '') newBtn.bottom = Math.max(0, Math.min(100, parseInt(bottomVal, 10)));
+      if (topEnabled.checked) newBtn.top = parseInt(topSlider.value, 10);
+      if (bottomEnabled.checked) newBtn.bottom = parseInt(bottomSlider.value, 10);
 
       fire({ ...this._config, preset_buttons: [...presetButtons, newBtn] });
     });
@@ -715,12 +763,10 @@ class LevitateBlindsCard extends HTMLElement {
     this._renderPresets();
     this._renderPresetButtons();
 
-    // Control buttons
     this.shadowRoot.getElementById('btn-open').addEventListener('click', (e) => { e.stopPropagation(); this._callService('open_cover'); });
     this.shadowRoot.getElementById('btn-stop').addEventListener('click', (e) => { e.stopPropagation(); this._callService('stop_cover'); });
     this.shadowRoot.getElementById('btn-close').addEventListener('click', (e) => { e.stopPropagation(); this._callService('close_cover'); });
 
-    // Card-level tap action
     this.shadowRoot.querySelector('ha-card').addEventListener('click', () => {
       if (this._justDragged) return;
       this._handleTap();
@@ -818,7 +864,6 @@ class LevitateBlindsCard extends HTMLElement {
       this.activeRail = null;
     };
 
-    // Rail listeners
     this.railTop.addEventListener('pointerdown', (e) => { e.stopPropagation(); handlePointerDown(e, 'top'); });
     this.railBottom.addEventListener('pointerdown', (e) => { e.stopPropagation(); handlePointerDown(e, 'bottom'); });
     [this.railTop, this.railBottom].forEach(rail => {
@@ -827,7 +872,6 @@ class LevitateBlindsCard extends HTMLElement {
       rail.addEventListener('pointercancel', handlePointerUp);
     });
 
-    // Container listeners — pointerdown only for single-motor
     this.container.addEventListener('pointerdown', (e) => {
       if (this.config.top_entity && this.config.bottom_entity) return;
       handlePointerDown(e, this.config.top_entity ? 'top' : 'bottom');
