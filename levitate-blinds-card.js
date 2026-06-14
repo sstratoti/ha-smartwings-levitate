@@ -42,7 +42,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
         label { font-size: 14px; color: var(--secondary-text-color); margin-bottom: 6px; display: block; }
         .checkbox-group { display: flex; align-items: center; gap: 8px; }
         .checkbox-group label { margin-bottom: 0; cursor: pointer; }
-        input[type="text"], select {
+        input[type="text"], input[type="number"], select {
           padding: 10px;
           border: 1px solid var(--divider-color);
           border-radius: 4px;
@@ -52,7 +52,10 @@ class LevitateBlindsCardEditor extends HTMLElement {
           width: 100%;
           box-sizing: border-box;
         }
-        input[type="text"]:focus, select:focus { outline: none; border-color: var(--primary-color); }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+          outline: none;
+          border-color: var(--primary-color);
+        }
         input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary-color); }
         input[type="color"] {
           width: 40px; height: 34px; padding: 2px 3px;
@@ -66,6 +69,50 @@ class LevitateBlindsCardEditor extends HTMLElement {
         .color-hint { font-size: 12px; color: var(--secondary-text-color); flex: 1; }
         ha-entity-picker { display: block; width: 100%; }
         #tap-entity-row { display: ${tapAction.action === 'none' ? 'none' : 'block'}; }
+        .preset-btn-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 10px;
+          background: var(--secondary-background-color, #f5f5f5);
+          border-radius: 4px;
+          gap: 8px;
+        }
+        .preset-btn-info { flex: 1; min-width: 0; }
+        .preset-btn-name { font-size: 13px; color: var(--primary-text-color); font-weight: 500; }
+        .preset-btn-positions { font-size: 11px; color: var(--secondary-text-color); margin-top: 2px; }
+        .preset-remove-btn {
+          background: none;
+          border: 1px solid var(--error-color, red);
+          color: var(--error-color, red);
+          border-radius: 4px;
+          padding: 3px 8px;
+          cursor: pointer;
+          font-size: 12px;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .no-presets { font-size: 12px; color: var(--secondary-text-color); font-style: italic; }
+        .add-form {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          padding: 12px;
+          background: var(--secondary-background-color, #f5f5f5);
+          border-radius: 4px;
+          border: 1px dashed var(--divider-color);
+        }
+        .add-form label { margin-bottom: 4px; }
+        .add-btn {
+          background: var(--primary-color);
+          color: white;
+          border: none;
+          border-radius: 4px;
+          padding: 8px 16px;
+          cursor: pointer;
+          font-size: 14px;
+          align-self: flex-start;
+        }
       </style>
       <div class="card-config">
 
@@ -103,7 +150,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
           <label for="show_labels">Show position labels</label>
         </div>
         <div>
-          <label>Preset Positions (comma-separated, 0–100)</label>
+          <label>Track Preset Marks (comma-separated, 0–100)</label>
           <input type="text" id="presets" value="${presetStr}" placeholder="e.g. 25, 50, 75">
         </div>
         <div class="color-row">
@@ -124,6 +171,26 @@ class LevitateBlindsCardEditor extends HTMLElement {
           <ha-entity-picker id="tap_entity" label="Entity for More Info (default: bottom or top entity)" allow-custom-entity></ha-entity-picker>
         </div>
 
+        <div class="section-title">Preset Buttons</div>
+        <div id="preset-buttons-list"></div>
+        <div class="add-form">
+          <div>
+            <label>Button Name</label>
+            <input type="text" id="new-preset-name" placeholder="e.g. Sunny">
+          </div>
+          <div class="two-col">
+            <div>
+              <label>Top Position % (optional)</label>
+              <input type="number" id="new-preset-top" min="0" max="100" placeholder="0–100">
+            </div>
+            <div>
+              <label>Bottom Position % (optional)</label>
+              <input type="number" id="new-preset-bottom" min="0" max="100" placeholder="0–100">
+            </div>
+          </div>
+          <button class="add-btn" id="add-preset-btn">+ Add Button</button>
+        </div>
+
       </div>
     `;
 
@@ -133,6 +200,7 @@ class LevitateBlindsCardEditor extends HTMLElement {
       this.dispatchEvent(ev);
     };
 
+    // Entity pickers
     const topPicker = this.shadowRoot.getElementById('top_entity');
     topPicker.hass = this._hass;
     topPicker.value = this._config.top_entity || '';
@@ -179,6 +247,66 @@ class LevitateBlindsCardEditor extends HTMLElement {
       this.shadowRoot.getElementById(id).addEventListener('change', (e) => {
         fire({ ...this._config, [id]: e.target.checked });
       });
+    });
+
+    // Preset buttons list
+    const presetButtons = this._config.preset_buttons || [];
+    const listEl = this.shadowRoot.getElementById('preset-buttons-list');
+
+    if (presetButtons.length) {
+      presetButtons.forEach((btn, idx) => {
+        const row = document.createElement('div');
+        row.className = 'preset-btn-row';
+
+        const info = document.createElement('div');
+        info.className = 'preset-btn-info';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'preset-btn-name';
+        nameEl.textContent = btn.name || 'Unnamed';
+
+        const posEl = document.createElement('div');
+        posEl.className = 'preset-btn-positions';
+        posEl.textContent = [
+          btn.top != null ? `↑ ${btn.top}%` : null,
+          btn.bottom != null ? `↓ ${btn.bottom}%` : null
+        ].filter(Boolean).join('   ');
+
+        info.appendChild(nameEl);
+        info.appendChild(posEl);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'preset-remove-btn';
+        removeBtn.textContent = 'Remove';
+        removeBtn.addEventListener('click', () => {
+          const newButtons = presetButtons.filter((_, i) => i !== idx);
+          fire({ ...this._config, preset_buttons: newButtons.length ? newButtons : undefined });
+        });
+
+        row.appendChild(info);
+        row.appendChild(removeBtn);
+        listEl.appendChild(row);
+      });
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'no-presets';
+      empty.textContent = 'No preset buttons yet.';
+      listEl.appendChild(empty);
+    }
+
+    // Add preset button
+    this.shadowRoot.getElementById('add-preset-btn').addEventListener('click', () => {
+      const nameVal = this.shadowRoot.getElementById('new-preset-name').value.trim();
+      if (!nameVal) return;
+
+      const topVal = this.shadowRoot.getElementById('new-preset-top').value;
+      const bottomVal = this.shadowRoot.getElementById('new-preset-bottom').value;
+
+      const newBtn = { name: nameVal };
+      if (topVal !== '') newBtn.top = Math.max(0, Math.min(100, parseInt(topVal, 10)));
+      if (bottomVal !== '') newBtn.bottom = Math.max(0, Math.min(100, parseInt(bottomVal, 10)));
+
+      fire({ ...this._config, preset_buttons: [...presetButtons, newBtn] });
     });
   }
 }
@@ -277,6 +405,53 @@ class LevitateBlindsCard extends HTMLElement {
       }
 
       this.container.insertBefore(mark, this.container.firstChild);
+    });
+  }
+
+  _renderPresetButtons() {
+    const container = this.shadowRoot.getElementById('preset-buttons');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const buttons = this.config.preset_buttons;
+    if (!buttons || !buttons.length) {
+      container.style.display = 'none';
+      return;
+    }
+    container.style.display = 'flex';
+
+    buttons.forEach(btn => {
+      const el = document.createElement('button');
+      el.className = 'preset-action-btn';
+      el.textContent = btn.name || 'Preset';
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!this._hass) return;
+
+        if (btn.top != null && this.config.top_entity) {
+          const invert = !!this.config.invert_top;
+          this._hass.callService('cover', 'set_cover_position', {
+            entity_id: this.config.top_entity,
+            position: invert ? 100 - btn.top : btn.top
+          });
+          this.currentTopPos = btn.top;
+          this.optimisticTop = btn.top;
+        }
+
+        if (btn.bottom != null && this.config.bottom_entity) {
+          const invert = !!this.config.invert_bottom;
+          this._hass.callService('cover', 'set_cover_position', {
+            entity_id: this.config.bottom_entity,
+            position: invert ? 100 - btn.bottom : btn.bottom
+          });
+          this.currentBottomPos = btn.bottom;
+          this.optimisticBottom = btn.bottom;
+        }
+
+        this.optimisticTimeout = Date.now() + 4000;
+        this.updateVisuals();
+      });
+      container.appendChild(el);
     });
   }
 
@@ -468,6 +643,30 @@ class LevitateBlindsCard extends HTMLElement {
         }
         .ctrl-btn:hover { background: ${accentColor}; color: white; }
         .ctrl-btn ha-icon { --mdc-icon-size: ${isSlim ? '16px' : '20px'}; }
+        .preset-buttons {
+          display: none;
+          flex-wrap: wrap;
+          gap: ${isSlim ? '6px' : '8px'};
+          justify-content: center;
+          width: 100%;
+        }
+        .preset-action-btn {
+          background: var(--secondary-background-color, #e0e0e0);
+          border: 1px solid var(--divider-color, #ccc);
+          border-radius: 16px;
+          padding: ${isSlim ? '4px 10px' : '6px 14px'};
+          cursor: pointer;
+          font-size: ${isSlim ? '11px' : '12px'};
+          font-weight: 500;
+          color: var(--primary-text-color);
+          transition: background 0.15s, color 0.15s, border-color 0.15s;
+          white-space: nowrap;
+        }
+        .preset-action-btn:hover {
+          background: ${accentColor};
+          color: white;
+          border-color: transparent;
+        }
         .error {
           color: var(--error-color, red);
           font-size: 13px;
@@ -497,6 +696,7 @@ class LevitateBlindsCard extends HTMLElement {
           <button class="ctrl-btn" id="btn-stop" title="Stop"><ha-icon icon="mdi:stop-circle-outline"></ha-icon></button>
           <button class="ctrl-btn" id="btn-close" title="Close"><ha-icon icon="mdi:arrow-down-circle-outline"></ha-icon></button>
         </div>
+        <div class="preset-buttons" id="preset-buttons"></div>
       </ha-card>
     `;
 
@@ -513,8 +713,9 @@ class LevitateBlindsCard extends HTMLElement {
     this.labelBottom = this.shadowRoot.getElementById('label-bottom');
 
     this._renderPresets();
+    this._renderPresetButtons();
 
-    // Control buttons — stopPropagation prevents bubbling to card tap handler
+    // Control buttons
     this.shadowRoot.getElementById('btn-open').addEventListener('click', (e) => { e.stopPropagation(); this._callService('open_cover'); });
     this.shadowRoot.getElementById('btn-stop').addEventListener('click', (e) => { e.stopPropagation(); this._callService('stop_cover'); });
     this.shadowRoot.getElementById('btn-close').addEventListener('click', (e) => { e.stopPropagation(); this._callService('close_cover'); });
@@ -617,7 +818,7 @@ class LevitateBlindsCard extends HTMLElement {
       this.activeRail = null;
     };
 
-    // Rail listeners — stopPropagation on pointerdown prevents double-fire for single-motor cards
+    // Rail listeners
     this.railTop.addEventListener('pointerdown', (e) => { e.stopPropagation(); handlePointerDown(e, 'top'); });
     this.railBottom.addEventListener('pointerdown', (e) => { e.stopPropagation(); handlePointerDown(e, 'bottom'); });
     [this.railTop, this.railBottom].forEach(rail => {
@@ -626,7 +827,7 @@ class LevitateBlindsCard extends HTMLElement {
       rail.addEventListener('pointercancel', handlePointerUp);
     });
 
-    // Container listeners — pointerdown only fires for single-motor; move/up/cancel always
+    // Container listeners — pointerdown only for single-motor
     this.container.addEventListener('pointerdown', (e) => {
       if (this.config.top_entity && this.config.bottom_entity) return;
       handlePointerDown(e, this.config.top_entity ? 'top' : 'bottom');
@@ -661,12 +862,10 @@ class LevitateBlindsCard extends HTMLElement {
     }
     this.errorMsg.style.display = 'none';
 
-    // Unavailable state
     const topUnavail = topState && topState.state === 'unavailable';
     const bottomUnavail = bottomState && bottomState.state === 'unavailable';
     this.container.classList.toggle('is-unavailable', !!(topUnavail || bottomUnavail));
 
-    // Moving state animation on fabric
     const isMoving = (s) => s && (s.state === 'opening' || s.state === 'closing');
     this.fabric.classList.toggle('is-moving', !!(isMoving(topState) || isMoving(bottomState)));
 
@@ -729,7 +928,6 @@ class LevitateBlindsCard extends HTMLElement {
     this.fabric.style.top = minY + '%';
     this.fabric.style.bottom = (100 - maxY) + '%';
 
-    // Position labels
     if (hasTop && hasBottom) {
       this.labelTop.textContent = `↑ ${Math.round(this.currentTopPos ?? 0)}%`;
       this.labelBottom.textContent = `↓ ${Math.round(this.currentBottomPos ?? 0)}%`;
