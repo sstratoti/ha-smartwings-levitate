@@ -11,11 +11,15 @@ class LevitateBlindsCardEditor extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    const topPicker = this.shadowRoot.getElementById('top_entity');
+    if (topPicker) topPicker.hass = hass;
+    const bottomPicker = this.shadowRoot.getElementById('bottom_entity');
+    if (bottomPicker) bottomPicker.hass = hass;
   }
 
   render() {
     if (!this._config) return;
-    
+
     this.shadowRoot.innerHTML = `
       <style>
         .card-config {
@@ -59,20 +63,26 @@ class LevitateBlindsCardEditor extends HTMLElement {
           cursor: pointer;
           accent-color: var(--primary-color);
         }
+        ha-entity-picker {
+          display: block;
+          width: 100%;
+        }
       </style>
       <div class="card-config">
         <div class="input-group">
           <label>Name (Optional)</label>
           <input type="text" id="name" value="${this._config.name || ''}" placeholder="e.g. Kitchen Blinds">
         </div>
-        <div class="input-group">
-          <label>Top Rail Entity (Optional if Bottom configured)</label>
-          <input type="text" id="top_entity" value="${this._config.top_entity || ''}" placeholder="cover.my_blind_top">
-        </div>
-        <div class="input-group">
-          <label>Bottom Rail Entity (Optional if Top configured)</label>
-          <input type="text" id="bottom_entity" value="${this._config.bottom_entity || ''}" placeholder="cover.my_blind_bottom">
-        </div>
+        <ha-entity-picker
+          id="top_entity"
+          label="Top Rail Entity (Optional if Bottom configured)"
+          allow-custom-entity
+        ></ha-entity-picker>
+        <ha-entity-picker
+          id="bottom_entity"
+          label="Bottom Rail Entity (Optional if Top configured)"
+          allow-custom-entity
+        ></ha-entity-picker>
         <div class="checkbox-group">
           <input type="checkbox" id="slim" ${this._config.slim ? 'checked' : ''}>
           <label for="slim">Slim Mode (Compact layout)</label>
@@ -80,27 +90,35 @@ class LevitateBlindsCardEditor extends HTMLElement {
       </div>
     `;
 
-    const updateConfig = () => {
-      const newConfig = {
-        ...this._config,
-        name: this.shadowRoot.getElementById('name').value,
-        top_entity: this.shadowRoot.getElementById('top_entity').value,
-        bottom_entity: this.shadowRoot.getElementById('bottom_entity').value,
-        slim: this.shadowRoot.getElementById('slim').checked,
-      };
-      
-      const event = new Event("config-changed", {
-        bubbles: true,
-        composed: true,
-      });
-      event.detail = { config: newConfig };
+    const fireConfigChanged = (config) => {
+      const event = new Event("config-changed", { bubbles: true, composed: true });
+      event.detail = { config };
       this.dispatchEvent(event);
     };
 
-    this.shadowRoot.getElementById('name').addEventListener('input', updateConfig);
-    this.shadowRoot.getElementById('top_entity').addEventListener('input', updateConfig);
-    this.shadowRoot.getElementById('bottom_entity').addEventListener('input', updateConfig);
-    this.shadowRoot.getElementById('slim').addEventListener('change', updateConfig);
+    const topPicker = this.shadowRoot.getElementById('top_entity');
+    topPicker.hass = this._hass;
+    topPicker.value = this._config.top_entity || '';
+    topPicker.includeDomains = ['cover'];
+    topPicker.addEventListener('value-changed', (e) => {
+      fireConfigChanged({ ...this._config, top_entity: e.detail.value });
+    });
+
+    const bottomPicker = this.shadowRoot.getElementById('bottom_entity');
+    bottomPicker.hass = this._hass;
+    bottomPicker.value = this._config.bottom_entity || '';
+    bottomPicker.includeDomains = ['cover'];
+    bottomPicker.addEventListener('value-changed', (e) => {
+      fireConfigChanged({ ...this._config, bottom_entity: e.detail.value });
+    });
+
+    this.shadowRoot.getElementById('name').addEventListener('input', (e) => {
+      fireConfigChanged({ ...this._config, name: e.target.value });
+    });
+
+    this.shadowRoot.getElementById('slim').addEventListener('change', (e) => {
+      fireConfigChanged({ ...this._config, slim: e.target.checked });
+    });
   }
 }
 customElements.define('levitate-blinds-card-editor', LevitateBlindsCardEditor);
@@ -321,18 +339,18 @@ class LevitateBlindsCard extends HTMLElement {
         }
         return;
       }
-      
+
       if (!this.isDragging || !this.activeRail) return;
       const rect = this.container.getBoundingClientRect();
       let y = e.clientY - rect.top;
       y = Math.max(0, Math.min(y, rect.height));
-      
+
       let pctFromTop = (y / rect.height) * 100;
       let position = Math.round(100 - pctFromTop);
-      
+
       const hasTop = !!this.config.top_entity;
       const hasBottom = !!this.config.bottom_entity;
-      
+
       if (this.activeRail === 'top') {
         if (hasBottom && position < this.currentBottomPos) {
           position = this.currentBottomPos;
@@ -354,7 +372,7 @@ class LevitateBlindsCard extends HTMLElement {
         this.activeRail = null;
         return;
       }
-      
+
       if (!this.isDragging) return;
       this.isDragging = false;
       this.container.classList.remove('dragging');
@@ -366,7 +384,7 @@ class LevitateBlindsCard extends HTMLElement {
       this.fabricGhost.style.display = 'none';
       this.railGhostTop.style.display = 'none';
       this.railGhostBottom.style.display = 'none';
-      
+
       const entity = this.activeRail === 'top' ? this.config.top_entity : this.config.bottom_entity;
       const position = this.activeRail === 'top' ? this.dragTopPos : this.dragBottomPos;
 
@@ -377,7 +395,7 @@ class LevitateBlindsCard extends HTMLElement {
         this.currentBottomPos = this.dragBottomPos;
       }
       this.updateVisuals();
-      
+
       // Optimistic UI update lock to prevent snapping back immediately
       this.optimisticTimeout = Date.now() + 4000;
       if (this.activeRail === 'top') {
@@ -385,7 +403,7 @@ class LevitateBlindsCard extends HTMLElement {
       } else {
         this.optimisticBottom = position;
       }
-      
+
       if (entity && this._hass) {
         this._hass.callService('cover', 'set_cover_position', {
           entity_id: entity,
@@ -420,7 +438,7 @@ class LevitateBlindsCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this.config) return;
-    
+
     const hasTop = !!this.config.top_entity;
     const hasBottom = !!this.config.bottom_entity;
 
@@ -435,7 +453,7 @@ class LevitateBlindsCard extends HTMLElement {
 
     const topState = hasTop ? hass.states[this.config.top_entity] : null;
     const bottomState = hasBottom ? hass.states[this.config.bottom_entity] : null;
-    
+
     if ((hasTop && !topState) || (hasBottom && !bottomState)) {
         this.errorMsg.innerText = "Entity not found. Check entity IDs.";
         this.errorMsg.style.display = 'block';
@@ -450,7 +468,7 @@ class LevitateBlindsCard extends HTMLElement {
       if (this.optimisticTimeout && Date.now() < this.optimisticTimeout) {
         this.currentTopPos = this.optimisticTop !== null ? this.optimisticTop : realTop;
         this.currentBottomPos = this.optimisticBottom !== null ? this.optimisticBottom : realBottom;
-        
+
         // If the real state has caught up to our optimistic state, we can unlock early
         if ((this.optimisticTop === null || Math.abs(realTop - this.optimisticTop) <= 2) &&
             (this.optimisticBottom === null || Math.abs(realBottom - this.optimisticBottom) <= 2)) {
