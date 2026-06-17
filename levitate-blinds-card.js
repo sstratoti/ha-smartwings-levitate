@@ -7,7 +7,9 @@ class LevitateBlindsCardEditor extends HTMLElement {
 
   setConfig(config) {
     this._config = config;
-    this.render();
+    if (!this._selfUpdate) {
+      this.render();
+    }
   }
 
   set hass(hass) {
@@ -312,9 +314,12 @@ class LevitateBlindsCardEditor extends HTMLElement {
     `;
 
     const fire = (config) => {
+      this._config = config;
+      this._selfUpdate = true;
       const ev = new Event('config-changed', { bubbles: true, composed: true });
       ev.detail = { config };
       this.dispatchEvent(ev);
+      this._selfUpdate = false;
     };
 
     // Entity pickers
