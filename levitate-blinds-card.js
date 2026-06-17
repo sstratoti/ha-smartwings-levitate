@@ -7,8 +7,22 @@ class LevitateBlindsCardEditor extends HTMLElement {
 
   setConfig(config) {
     this._config = config;
-    if (!this._selfUpdate) {
-      this.render();
+
+    const focusedEl = this.shadowRoot.activeElement;
+    const focusedId = focusedEl?.id;
+    const selStart = focusedEl?.selectionStart;
+    const selEnd = focusedEl?.selectionEnd;
+
+    this.render();
+
+    if (focusedId) {
+      const el = this.shadowRoot.getElementById(focusedId);
+      if (el) {
+        el.focus();
+        if (typeof selStart === 'number') {
+          try { el.setSelectionRange(selStart, selEnd); } catch (_) {}
+        }
+      }
     }
   }
 
@@ -315,11 +329,9 @@ class LevitateBlindsCardEditor extends HTMLElement {
 
     const fire = (config) => {
       this._config = config;
-      this._selfUpdate = true;
       const ev = new Event('config-changed', { bubbles: true, composed: true });
       ev.detail = { config };
       this.dispatchEvent(ev);
-      this._selfUpdate = false;
     };
 
     // Entity pickers
